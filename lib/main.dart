@@ -33,38 +33,60 @@ class MapScreen extends StatefulWidget {
 
 class _MapScreenState extends State<MapScreen> {
   late MapController mapController;
-  final searchController = TextEditingController();
+  final fromSearchController = TextEditingController();
+  final toSearchController = TextEditingController();
   LatLng currentLocation = const LatLng(-26.2041, 28.0473); // Johannesburg
+  LatLng? destinationLocation;
   bool isSearching = false;
   List<Map<String, dynamic>> suggestions = [];
   bool showSuggestions = false;
   List<Polyline> roadPolylines = [];
   bool isLoadingRoads = false;
+  Polyline? routePolyline;
+  bool isCalculatingRoute = false;
+  String routeInfo = '';
+  bool isEditingTo = false; // Track which field is being edited
 
   @override
   void initState() {
     super.initState();
     mapController = MapController();
-    searchController.addListener(_onSearchChanged);
+    fromSearchController.addListener(_onFromSearchChanged);
+    toSearchController.addListener(_onToSearchChanged);
     _fetchRoads(currentLocation);
   }
 
   @override
   void dispose() {
-    searchController.removeListener(_onSearchChanged);
-    searchController.dispose();
+    fromSearchController.removeListener(_onFromSearchChanged);
+    toSearchController.removeListener(_onToSearchChanged);
+    fromSearchController.dispose();
+    toSearchController.dispose();
     super.dispose();
   }
 
-  void _onSearchChanged() {
-    if (searchController.text.isEmpty) {
+  void _onFromSearchChanged() {
+    setState(() => isEditingTo = false);
+    if (fromSearchController.text.isEmpty) {
       setState(() {
         suggestions = [];
         showSuggestions = false;
       });
       return;
     }
-    _fetchSuggestions(searchController.text);
+    _fetchSuggestions(fromSearchController.text);
+  }
+
+  void _onToSearchChanged() {
+    setState(() => isEditingTo = true);
+    if (toSearchController.text.isEmpty) {
+      setState(() {
+        suggestions = [];
+        showSuggestions = false;
+      });
+      return;
+    }
+    _fetchSuggestions(toSearchController.text);
   }
 
   Future<void> _fetchSuggestions(String query) async {
@@ -98,14 +120,14 @@ class _MapScreenState extends State<MapScreen> {
     }
   }
 
-  Future<void> selectLocation(Map<String, dynamic> location) async {
+  Future<void> selectFromLocation(Map<String, dynamic> location) async {
     final lat = location['lat'] as double;
     final lon = location['lon'] as double;
     final newLocation = LatLng(lat, lon);
 
     setState(() {
       currentLocation = newLocation;
-      searchController.text = location['display_name'];
+      fromSearchController.text = location['display_name'];
       suggestions = [];
       showSuggestions = false;
     });
@@ -113,12 +135,80 @@ class _MapScreenState extends State<MapScreen> {
     mapController.move(newLocation, 14);
     _fetchRoads(newLocation);
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Found: ${location['display_name']}'),
-        duration: const Duration(seconds: 2),
-      ),
-    );
+    // If destination exists, calculate route
+    if (destinationLocation != null) {
+      _calculateRoute(newLocation, destinationLocation!);
+    }
+  }
+
+  Future<void> selectToLocation(Map<String, dynamic> location) async {
+    final lat = location['lat'] as double;
+    final lon = location['lon'] as double;
+    final newLocation = LatLng(lat, lon);
+
+    setState(() {
+      destinationLocation = newLocation;
+      toSearchController.text = location['display_name'];
+      suggestions = [];
+      showSuggestions = false;
+    });
+
+    // Calculate route from current to destination
+    _calculateRoute(currentLocation, newLocation);
+  }
+
+  Future<void> _calculateRoute(LatLng start, LatLng end) async {
+    setState(() => isCalculatingRoute = true);
+
+    try {
+      // Use OSRM (Open Source Routing Machine) - free routing service
+      final url = 'https://router.project-osrm.org/route/v1/driving/'
+          '${start.longitude},${start.latitude};${end.longitude},${end.latitude}'
+          '?overview=full&geometries=geojson';
+
+      final response = await http.get(Uri.parse(url)).timeout(
+        const Duration(seconds: 15),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final routes = data['routes'] as List?;
+
+        if (routes != null && routes.isNotEmpty) {
+          final route = routes[0];
+          final geometry = route['geometry']['coordinates'] as List;
+          final distance = route['distance'] as num; // meters
+          final duration = route['duration'] as num; // seconds
+
+          // Convert to LatLng
+          final routePoints = <LatLng>[];
+          for (final coord in geometry) {
+            routePoints.add(LatLng(coord[1], coord[0]));
+          }
+
+          // Format info
+          final distanceKm = (distance / 1000).toStringAsFixed(1);
+          final durationMin = (duration / 60).toStringAsFixed(0);
+
+          setState(() {
+            routePolyline = Polyline(
+              points: routePoints,
+              color: Colors.blue,
+              strokeWidth: 4,
+              borderColor: Colors.blue.shade900,
+              borderStrokeWidth: 1,
+            );
+            routeInfo = '$distanceKm km • $durationMin min';
+          });
+
+          debugPrint('✓ Route: $distanceKm km, $durationMin minutes');
+        }
+      }
+    } catch (e) {
+      debugPrint('Route calculation error: $e');
+    } finally {
+      setState(() => isCalculatingRoute = false);
+    }
   }
 
   Future<void> _fetchRoads(LatLng center) async {
@@ -301,6 +391,11 @@ class _MapScreenState extends State<MapScreen> {
               PolylineLayer(
                 polylines: roadPolylines,
               ),
+              // Route polyline
+              if (routePolyline != null)
+                PolylineLayer(
+                  polylines: [routePolyline!],
+                ),
               // Current location marker
               MarkerLayer(
                 markers: [
@@ -322,6 +417,31 @@ class _MapScreenState extends State<MapScreen> {
                       ),
                     ),
                   ),
+                  // Destination marker
+                  if (destinationLocation != null)
+                    Marker(
+                      point: destinationLocation!,
+                      width: 40,
+                      height: 40,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.red,
+                          borderRadius: BorderRadius.circular(50),
+                          border: Border.all(color: Colors.white, width: 2),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.red.withOpacity(0.5),
+                              blurRadius: 10,
+                            ),
+                          ],
+                        ),
+                        child: const Icon(
+                          Icons.location_on,
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                      ),
+                    ),
                 ],
               ),
             ],
@@ -382,6 +502,7 @@ class _MapScreenState extends State<MapScreen> {
             right: 16,
             child: Column(
               children: [
+                // From location search
                 Container(
                   decoration: BoxDecoration(
                     color: const Color(0xFF1A2634),
@@ -394,23 +515,60 @@ class _MapScreenState extends State<MapScreen> {
                     ],
                   ),
                   child: TextField(
-                    controller: searchController,
+                    controller: fromSearchController,
                     decoration: InputDecoration(
-                      hintText: 'Search location...',
+                      hintText: 'From...',
                       hintStyle: TextStyle(color: Colors.grey.withOpacity(0.5)),
+                      prefixIcon: Icon(Icons.location_on, color: Colors.blue.shade300),
                       border: InputBorder.none,
                       contentPadding: const EdgeInsets.symmetric(
                         horizontal: 16,
                         vertical: 12,
                       ),
-                      suffixIcon: searchController.text.isNotEmpty
+                      suffixIcon: fromSearchController.text.isNotEmpty
                           ? IconButton(
                               icon: const Icon(Icons.clear),
                               onPressed: () {
-                                searchController.clear();
+                                fromSearchController.clear();
+                              },
+                            )
+                          : null,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                // To location search
+                Container(
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1A2634),
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.3),
+                        blurRadius: 8,
+                      ),
+                    ],
+                  ),
+                  child: TextField(
+                    controller: toSearchController,
+                    decoration: InputDecoration(
+                      hintText: 'To...',
+                      hintStyle: TextStyle(color: Colors.grey.withOpacity(0.5)),
+                      prefixIcon: Icon(Icons.location_on, color: Colors.red.shade300),
+                      border: InputBorder.none,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                      suffixIcon: toSearchController.text.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear),
+                              onPressed: () {
+                                toSearchController.clear();
                                 setState(() {
-                                  suggestions = [];
-                                  showSuggestions = false;
+                                  destinationLocation = null;
+                                  routePolyline = null;
+                                  routeInfo = '';
                                 });
                               },
                             )
@@ -450,10 +608,51 @@ class _MapScreenState extends State<MapScreen> {
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(fontSize: 14),
                           ),
-                          onTap: () => selectLocation(suggestion),
+                          onTap: () {
+                            if (isEditingTo) {
+                              selectToLocation(suggestion);
+                            } else {
+                              selectFromLocation(suggestion);
+                            }
+                          },
                           hoverColor: Colors.blue.withOpacity(0.1),
                         );
                       },
+                    ),
+                  ),
+                // Route info
+                if (routeInfo.isNotEmpty)
+                  Container(
+                    margin: const EdgeInsets.only(top: 8),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1A2634),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.blue, width: 1),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.directions, color: Colors.blue),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            routeInfo,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        if (isCalculatingRoute)
+                          SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation(Colors.blue),
+                            ),
+                          ),
+                      ],
                     ),
                   ),
               ],
