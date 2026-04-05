@@ -186,8 +186,9 @@ class _MapScreenState extends State<MapScreen> {
             ),
             children: [
               TileLayer(
-                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                urlTemplate: 'https://a.basemaps.cartocdn.com/positron/{z}/{x}/{y}@2x.png',
                 userAgentPackageName: 'com/terrainiq',
+                maxZoom: 19,
               ),
              
 PolylineLayer(polylines: [
