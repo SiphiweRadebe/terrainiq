@@ -125,18 +125,26 @@ class _MapScreenState extends State<MapScreen> {
     setState(() => isLoadingRoads = true);
 
     try {
-      // Get vertical distance that represents one degree
-      final url = 'https://overpass-api.de/api/interpreter?data='
-          '[out:json];'
-          '(way[highway~"^(primary|secondary|tertiary|residential|living_street)$"][surface](${center.latitude - 0.04},${center.longitude - 0.04},${center.latitude + 0.04},${center.longitude + 0.04}););'
+      // Build Overpass API request
+      final lat = center.latitude;
+      final lon = center.longitude;
+      final south = lat - 0.04;
+      final west = lon - 0.04;
+      final north = lat + 0.04;
+      final east = lon + 0.04;
+      
+      final queryString = '[out:json];'
+          '(way[highway~"^(primary|secondary|tertiary|residential|living_street)\$"][surface]'
+          '($south,$west,$north,$east););'
           'out body geom;';
 
+      final url = 'https://overpass-api.de/api/interpreter?data=${Uri.encodeComponent(queryString)}';
+
       final response = await http.get(
-        Uri.parse(Uri.encodeFull(url)),
+        Uri.parse(url),
       ).timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 200) {
-        // Try to parse as JSON
         try {
           final data = jsonDecode(response.body) as Map<String, dynamic>;
           final ways = data['elements'] as List? ?? [];
@@ -144,25 +152,24 @@ class _MapScreenState extends State<MapScreen> {
           if (ways.isNotEmpty) {
             final roads = _parseRealRoads(ways);
             setState(() => roadPolylines = roads);
-            debugPrint('Loaded ${roads.length} road segments from ${ways.length} ways');
+            debugPrint('✓ Loaded ${roads.length} road segments');
           } else {
-            debugPrint('No ways found in response');
+            debugPrint('No ways found - using sample roads');
             final sampleRoads = _generateSampleRoads(center);
             setState(() => roadPolylines = sampleRoads);
           }
         } catch (e) {
-          debugPrint('Parse error: $e');
+          debugPrint('Parse error: $e - using sample roads');
           final sampleRoads = _generateSampleRoads(center);
           setState(() => roadPolylines = sampleRoads);
         }
       } else {
-        debugPrint('HTTP error: ${response.statusCode}');
+        debugPrint('HTTP ${response.statusCode} - using sample roads');
         final sampleRoads = _generateSampleRoads(center);
         setState(() => roadPolylines = sampleRoads);
       }
     } catch (e) {
-      debugPrint('Request error: $e');
-      // Fallback to sample roads
+      debugPrint('Request failed: $e - using sample roads');
       final sampleRoads = _generateSampleRoads(center);
       setState(() => roadPolylines = sampleRoads);
     } finally {
