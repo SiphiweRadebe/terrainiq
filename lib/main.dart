@@ -125,18 +125,106 @@ class _MapScreenState extends State<MapScreen> {
     setState(() => isLoadingRoads = true);
 
     try {
-      // For now, create sample roads to show surface type colors
-      // In production, this would query the Overpass API with proper CORS handling
-      
+      // Get vertical distance that represents one degree
+      final url = 'https://overpass-api.de/api/interpreter?data='
+          '[out:json];'
+          '(way[highway~"^(primary|secondary|tertiary|residential|living_street)$"][surface](${center.latitude - 0.04},${center.longitude - 0.04},${center.latitude + 0.04},${center.longitude + 0.04}););'
+          'out body geom;';
+
+      final response = await http.get(
+        Uri.parse(Uri.encodeFull(url)),
+      ).timeout(const Duration(seconds: 30));
+
+      if (response.statusCode == 200) {
+        // Try to parse as JSON
+        try {
+          final data = jsonDecode(response.body) as Map<String, dynamic>;
+          final ways = data['elements'] as List? ?? [];
+          
+          if (ways.isNotEmpty) {
+            final roads = _parseRealRoads(ways);
+            setState(() => roadPolylines = roads);
+            debugPrint('Loaded ${roads.length} road segments from ${ways.length} ways');
+          } else {
+            debugPrint('No ways found in response');
+            final sampleRoads = _generateSampleRoads(center);
+            setState(() => roadPolylines = sampleRoads);
+          }
+        } catch (e) {
+          debugPrint('Parse error: $e');
+          final sampleRoads = _generateSampleRoads(center);
+          setState(() => roadPolylines = sampleRoads);
+        }
+      } else {
+        debugPrint('HTTP error: ${response.statusCode}');
+        final sampleRoads = _generateSampleRoads(center);
+        setState(() => roadPolylines = sampleRoads);
+      }
+    } catch (e) {
+      debugPrint('Request error: $e');
+      // Fallback to sample roads
       final sampleRoads = _generateSampleRoads(center);
       setState(() => roadPolylines = sampleRoads);
-      
-      await Future.delayed(const Duration(milliseconds: 500));
-    } catch (e) {
-      debugPrint('Error fetching roads: $e');
     } finally {
       setState(() => isLoadingRoads = false);
     }
+  }
+
+  List<Polyline> _parseRealRoads(List<dynamic> ways) {
+    final polylines = <Polyline>[];
+    
+    for (final way in ways) {
+      if (way['type'] != 'way') continue;
+
+      final tags = way['tags'] as Map<String, dynamic>? ?? {};
+      final geometry = way['geometry'] as List? ?? [];
+
+      if (geometry.isEmpty) continue;
+
+      final surface = (tags['surface'] as String? ?? 'unknown').toLowerCase();
+
+      // Determine color based on surface
+      Color roadColor;
+      if (surface.contains('asphalt') || 
+          surface.contains('concrete') || 
+          surface.contains('paved') ||
+          surface == 'smooth') {
+        roadColor = Colors.green; // Tar/Asphalt
+      } else if (surface.contains('gravel') || 
+                 surface.contains('dirt') || 
+                 surface.contains('unpaved') ||
+                 surface.contains('ground')) {
+        roadColor = const Color(0xFFD4A574); // Gravel/brown
+      } else {
+        roadColor = Colors.grey; // Unknown
+      }
+
+      // Convert geometry to LatLng points
+      final latLngs = <LatLng>[];
+      for (final point in geometry) {
+        if (point is Map) {
+          final lat = point['lat'];
+          final lon = point['lon'];
+          if (lat != null && lon != null) {
+            latLngs.add(LatLng(lat, lon));
+          }
+        }
+      }
+
+      if (latLngs.isNotEmpty) {
+        polylines.add(
+          Polyline(
+            points: latLngs,
+            color: roadColor,
+            strokeWidth: 2.5,
+            borderColor: roadColor.withOpacity(0.5),
+            borderStrokeWidth: 0.5,
+          ),
+        );
+      }
+    }
+
+    return polylines;
   }
 
   List<Polyline> _generateSampleRoads(LatLng center) {
@@ -150,7 +238,7 @@ class _MapScreenState extends State<MapScreen> {
         LatLng(center.latitude + 0.02, center.longitude),
       ],
       color: Colors.green,
-      strokeWidth: 3,
+      strokeWidth: 2.5,
     ));
 
     polylines.add(Polyline(
@@ -159,7 +247,7 @@ class _MapScreenState extends State<MapScreen> {
         LatLng(center.latitude - 0.01, center.longitude + 0.03),
       ],
       color: Colors.green,
-      strokeWidth: 3,
+      strokeWidth: 2.5,
     ));
 
     // Sample gravel roads (brown)
@@ -170,7 +258,7 @@ class _MapScreenState extends State<MapScreen> {
         LatLng(center.latitude + 0.03, center.longitude + 0.02),
       ],
       color: const Color(0xFFD4A574),
-      strokeWidth: 3,
+      strokeWidth: 2.5,
     ));
 
     polylines.add(Polyline(
@@ -179,7 +267,7 @@ class _MapScreenState extends State<MapScreen> {
         LatLng(center.latitude + 0.02, center.longitude + 0.03),
       ],
       color: const Color(0xFFD4A574),
-      strokeWidth: 3,
+      strokeWidth: 2.5,
     ));
 
     return polylines;
