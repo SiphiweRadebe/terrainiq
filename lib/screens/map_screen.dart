@@ -152,8 +152,10 @@ class _MapScreenState extends State<MapScreen> {
           points: route.coordinates
               .map((c) => LatLng(c['lat']!, c['lon']!))
               .toList(),
-          color: Colors.blue,
-          strokeWidth: 4,
+          color: Colors.blue.withValues(alpha: 0.5),
+          strokeWidth: 5,
+          borderColor: Colors.blue.withValues(alpha: 0.8),
+          borderStrokeWidth: 1,
         );
       }
     });
