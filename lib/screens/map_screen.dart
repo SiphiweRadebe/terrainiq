@@ -6,8 +6,8 @@ import '../models/location.dart';
 import '../models/route.dart' as route_model;
 import '../services/geocoding_service.dart';
 import '../services/routing_service.dart';
-import '../services/road_service.dart';
 import '../utils/constants.dart';
+import '../services/road_service.dart';
 
 class MapScreen extends StatefulWidget {
   const MapScreen({Key? key}) : super(key: key);
@@ -34,6 +34,7 @@ class _MapScreenState extends State<MapScreen> {
   Polyline? _routePolyline;
   route_model.RouteInfo? _currentRoute;
   bool _isCalculatingRoute = false;
+  RoutingMode _routingMode = RoutingMode.driving;
 
   // Road state
   List<Polyline> _roadPolylines = [];
@@ -137,7 +138,11 @@ class _MapScreenState extends State<MapScreen> {
   Future<void> _calculateRoute(LatLng start, LatLng end) async {
     setState(() => _isCalculatingRoute = true);
 
-    final route = await RoutingService.calculateRoute(start, end);
+    final route = await RoutingService.calculateRoute(
+      start,
+      end,
+      mode: _routingMode,
+    );
 
     setState(() {
       _isCalculatingRoute = false;
@@ -235,7 +240,7 @@ PolylineLayer(polylines: [
                         controller: _fromSearchController,
                         style: const TextStyle(color: Colors.white),
                         decoration: InputDecoration(
-                          hintText: 'From',
+                          hintText: 'From (address or place)',
                           hintStyle: TextStyle(color: Colors.grey[500]),
                           border: InputBorder.none,
                           contentPadding:
@@ -253,7 +258,7 @@ PolylineLayer(polylines: [
                         controller: _toSearchController,
                         style: const TextStyle(color: Colors.white),
                         decoration: InputDecoration(
-                          hintText: 'To',
+                          hintText: 'To (address or place)',
                           hintStyle: TextStyle(color: Colors.grey[500]),
                           border: InputBorder.none,
                           contentPadding:
@@ -264,6 +269,38 @@ PolylineLayer(polylines: [
                     ],
                   ),
                 ),
+                
+                // Routing mode selector
+                if (_destinationLocation != null)
+                  Container(
+                    margin: const EdgeInsets.only(top: 8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1A2332),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.grey[700]!),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        _routingModeButton(
+                          emoji: '🚗',
+                          mode: RoutingMode.driving,
+                          label: 'Drive',
+                        ),
+                        _routingModeButton(
+                          emoji: '🚶',
+                          mode: RoutingMode.walking,
+                          label: 'Walk',
+                        ),
+                        _routingModeButton(
+                          emoji: '🚴',
+                          mode: RoutingMode.cycling,
+                          label: 'Bike',
+                        ),
+                      ],
+                    ),
+                  ),
+                
                 if (_showSuggestions && _suggestions.isNotEmpty)
                   Container(
                     margin: const EdgeInsets.only(top: 4),
@@ -371,6 +408,53 @@ PolylineLayer(polylines: [
           style: const TextStyle(color: Colors.white, fontSize: 11),
         ),
       ],
+    );
+  }
+
+  Widget _routingModeButton({
+    required String emoji,
+    required RoutingMode mode,
+    required String label,
+  }) {
+    final isSelected = _routingMode == mode;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () {
+          setState(() => _routingMode = mode);
+          if (_destinationLocation != null) {
+            _calculateRoute(_currentLocation, _destinationLocation!);
+          }
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            color: isSelected ? Colors.blue[900] : Colors.transparent,
+            border: Border(
+              bottom: BorderSide(
+                color: isSelected ? Colors.blue[300]! : Colors.transparent,
+                width: 2,
+              ),
+            ),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                emoji,
+                style: const TextStyle(fontSize: 20),
+              ),
+              Text(
+                label,
+                style: TextStyle(
+                  color: isSelected ? Colors.blue[300] : Colors.grey[500],
+                  fontSize: 10,
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
