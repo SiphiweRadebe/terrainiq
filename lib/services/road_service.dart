@@ -6,7 +6,7 @@ import 'package:latlong2/latlong.dart';
 
 class RoadService {
   static const String _baseUrl = 'https://overpass-api.de/api/interpreter';
-  static const double _cacheRadius = 0.04;
+  static const double _cacheRadius = 0.02; // Smaller = faster, only 2km radius
 
   // Cache roads by location
   static final Map<String, List<Polyline>> _roadCache = {};
@@ -78,17 +78,17 @@ class RoadService {
       final north = lat + _cacheRadius;
       final east = lon + _cacheRadius;
 
-      // Query only major roads for performance
-      final queryString = '[out:json];'
-          '(way[highway~"^(primary|secondary)\$"]'
+      // Query ONLY primary roads with 8 second timeout
+      final queryString = '[out:json][timeout:8];'
+          '(way[highway=primary]'
           '($south,$west,$north,$east););'
-          'out body geom;';
+          'out geom;';
 
-      print('📡 Fetching roads for: $lat, $lon');
+      print('📡 Fetching primary roads for: $lat, $lon');
       final response = await http.post(
         Uri.parse(_baseUrl),
         body: queryString,
-      ).timeout(const Duration(seconds: 20));
+      ).timeout(const Duration(seconds: 12));
 
       if (response.statusCode == 200) {
         try {
@@ -96,11 +96,15 @@ class RoadService {
           final ways = data['elements'] as List? ?? [];
 
           final polylines = <Polyline>[];
+          int roadCount = 0;
+          
+          // Limit to 50 roads max for performance
           for (final way in ways) {
+            if (roadCount >= 50) break;
             if (way['type'] != 'way') continue;
 
             final geometry = way['geometry'] as List? ?? [];
-            if (geometry.isEmpty) continue;
+            if (geometry.length < 2) continue;
 
             final tags = way['tags'] as Map<String, dynamic>? ?? {};
             final surface = tags['surface'] as String? ?? 'unknown';
@@ -116,23 +120,24 @@ class RoadService {
               }
             }
 
-            if (latLngs.isNotEmpty) {
+            if (latLngs.length >= 2) {
               polylines.add(
                 Polyline(
                   points: latLngs,
                   color: color,
                   strokeWidth: 2.5,
-                  borderColor: color.withOpacity(0.5),
+                  borderColor: color.withValues(alpha: 0.5),
                   borderStrokeWidth: 0.5,
                 ),
               );
+              roadCount++;
             }
           }
 
           // Cache the result
           _roadCache[cacheKey] = polylines;
           _lastFetchedCenter = center;
-          print('✓ Loaded ${polylines.length} road segments, cached to $cacheKey');
+          print('✓ Loaded $roadCount primary roads');
 
           return polylines;
         } catch (e) {
