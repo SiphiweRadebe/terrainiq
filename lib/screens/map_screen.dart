@@ -22,7 +22,7 @@ class _MapScreenState extends State<MapScreen> {
   final TextEditingController _toSearchController = TextEditingController();
 
   // Location state
-  LatLng? _currentLocation;
+  LatLng _currentLocation = const LatLng(-26.2041, 28.0473); // Johannesburg
   LatLng? _destinationLocation;
 
   // Search state
@@ -47,7 +47,8 @@ class _MapScreenState extends State<MapScreen> {
     super.initState();
     _fromSearchController.addListener(_onFromSearchChanged);
     _toSearchController.addListener(_onToSearchChanged);
-    _fetchRoads(const LatLng(0, 0));
+    // Start fetching roads from initial location
+    _fetchRoads(_currentLocation);
   }
 
   @override
@@ -111,11 +112,11 @@ class _MapScreenState extends State<MapScreen> {
       _showSuggestions = false;
     });
 
-    _mapController.move(_currentLocation!, 13);
-    _fetchRoads(_currentLocation!);
+    _mapController.move(_currentLocation, 13);
+    _fetchRoads(_currentLocation);
 
     if (_destinationLocation != null) {
-      _calculateRoute(_currentLocation!, _destinationLocation!);
+      _calculateRoute(_currentLocation, _destinationLocation!);
     }
   }
 
@@ -130,9 +131,7 @@ class _MapScreenState extends State<MapScreen> {
     _mapController.move(_destinationLocation!, 13);
     _fetchRoads(_destinationLocation!);
 
-    if (_currentLocation != null) {
-      _calculateRoute(_currentLocation!, _destinationLocation!);
-    }
+    _calculateRoute(_currentLocation, _destinationLocation!);
   }
 
   Future<void> _calculateRoute(LatLng start, LatLng end) async {
@@ -166,17 +165,6 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 
-  void _fetchRoas(LatLng center) {
-    _roadDebounceTimer?.cancel();
-    _roadDebounceTimer = Timer(
-      const Duration(milliseconds: roadDebounceMs),
-      () async {
-        final roads = await RoadService.fetchRoads(center);
-        setState(() => _roadPolylines = roads);
-      },
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -185,9 +173,9 @@ class _MapScreenState extends State<MapScreen> {
           // Map
           FlutterMap(
             mapController: _mapController,
-            options: const MapOptions(
-              initialCenter: LatLng(0, 0),
-              initialZoom: 2,
+            options: MapOptions(
+              initialCenter: _currentLocation,
+              initialZoom: 12,
             ),
             children: [
               TileLayer(
@@ -201,17 +189,16 @@ PolylineLayer(polylines: [
               ]),
               MarkerLayer(
                 markers: [
-                  if (_currentLocation != null)
-                    Marker(
-                      point: _currentLocation!,
-                      width: 40,
-                      height: 40,
-                      child: const Icon(
-                        Icons.location_on,
-                        color: Colors.blue,
-                        size: 40,
-                      ),
+                  Marker(
+                    point: _currentLocation,
+                    width: 40,
+                    height: 40,
+                    child: const Icon(
+                      Icons.location_on,
+                      color: Colors.blue,
+                      size: 40,
                     ),
+                  ),
                   if (_destinationLocation != null)
                     Marker(
                       point: _destinationLocation!,

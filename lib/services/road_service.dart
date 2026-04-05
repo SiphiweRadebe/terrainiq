@@ -54,6 +54,7 @@ class RoadService {
     // Check cache first
     final cacheKey = _getCacheKey(center);
     if (_roadCache.containsKey(cacheKey)) {
+      print('✓ Using cached roads for $cacheKey');
       return _roadCache[cacheKey]!;
     }
 
@@ -64,6 +65,7 @@ class RoadService {
         orElse: () => '',
       );
       if (existingKey.isNotEmpty) {
+        print('✓ Using nearby cached roads from $existingKey');
         return _roadCache[existingKey]!;
       }
     }
@@ -82,6 +84,7 @@ class RoadService {
           '($south,$west,$north,$east););'
           'out body geom;';
 
+      print('📡 Fetching roads for: $lat, $lon');
       final response = await http.post(
         Uri.parse(_baseUrl),
         body: queryString,
@@ -129,17 +132,22 @@ class RoadService {
           // Cache the result
           _roadCache[cacheKey] = polylines;
           _lastFetchedCenter = center;
-          print('✓ Cached ${polylines.length} roads for $cacheKey');
+          print('✓ Loaded ${polylines.length} road segments, cached to $cacheKey');
 
           return polylines;
         } catch (e) {
-          print('Parse error: $e');
+          print('❌ Parse error: $e');
+          // Return empty - will show sample roads
         }
+      } else {
+        print('❌ HTTP ${response.statusCode}');
       }
     } catch (e) {
-      print('Road fetch error: $e');
+      print('❌ Road fetch error: $e');
     }
 
+    // Return empty polylines - UI will show map without roads
+    print('ℹ️ No roads available, showing blank map');
     return [];
   }
 }

@@ -9,19 +9,26 @@ class GeocodingService {
     if (query.isEmpty) return [];
 
     try {
+      final url = '$_baseUrl/search?q=$query&format=json&limit=5';
+      print('🔍 Searching: $query');
+      
       final response = await http.get(
-        Uri.parse('$_baseUrl/search?q=$query&format=json&limit=5'),
+        Uri.parse(url),
         headers: {'User-Agent': 'TerrainIQ-App'},
       ).timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
         final results = jsonDecode(response.body) as List;
-        return results
+        final locations = results
             .map((r) => Location.fromJson(r as Map<String, dynamic>))
             .toList();
+        print('✓ Found ${locations.length} locations');
+        return locations;
+      } else {
+        print('❌ Geocoding HTTP ${response.statusCode}');
       }
     } catch (e) {
-      print('Geocoding error: $e');
+      print('❌ Geocoding error: $e');
     }
     return [];
   }
