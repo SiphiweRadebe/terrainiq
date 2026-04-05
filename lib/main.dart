@@ -161,7 +161,7 @@ class _MapScreenState extends State<MapScreen> {
                       controller: searchController,
                       decoration: InputDecoration(
                         hintText: 'Search location...',
-                        hintStyle: Colors.grey.withOpacity(0.5),
+                        hintStyle: TextStyle(color: Colors.grey.withOpacity(0.5)),
                         border: InputBorder.none,
                         contentPadding: const EdgeInsets.symmetric(
                           horizontal: 16,
