@@ -186,7 +186,8 @@ class _MapScreenState extends State<MapScreen> {
             ),
             children: [
               TileLayer(
-                urlTemplate: 'https://a.basemaps.cartocdn.com/positron/{z}/{x}/{y}@2x.png',
+                urlTemplate: 'https://{s}.basemaps.cartocdn.com/positron/{z}/{x}/{y}.png',
+                subdomains: const ['a', 'b', 'c', 'd'],
                 userAgentPackageName: 'com/terrainiq',
                 maxZoom: 19,
               ),
