@@ -36,28 +36,41 @@ class _MapScreenState extends State<MapScreen> {
   final searchController = TextEditingController();
   LatLng currentLocation = const LatLng(-26.2041, 28.0473); // Johannesburg
   bool isSearching = false;
+  List<Map<String, dynamic>> suggestions = [];
+  bool showSuggestions = false;
 
   @override
   void initState() {
     super.initState();
     mapController = MapController();
+    searchController.addListener(_onSearchChanged);
   }
 
   @override
   void dispose() {
+    searchController.removeListener(_onSearchChanged);
     searchController.dispose();
     super.dispose();
   }
 
-  Future<void> searchLocation(String query) async {
-    if (query.isEmpty) return;
+  void _onSearchChanged() {
+    if (searchController.text.isEmpty) {
+      setState(() {
+        suggestions = [];
+        showSuggestions = false;
+      });
+      return;
+    }
+    _fetchSuggestions(searchController.text);
+  }
 
-    setState(() => isSearching = true);
+  Future<void> _fetchSuggestions(String query) async {
+    if (query.isEmpty) return;
 
     try {
       final response = await http.get(
         Uri.parse(
-          'https://nominatim.openstreetmap.org/search?q=$query&format=json&limit=1',
+          'https://nominatim.openstreetmap.org/search?q=$query&format=json&limit=5',
         ),
         headers: {
           'User-Agent': 'TerrainIQ-App',
@@ -66,33 +79,42 @@ class _MapScreenState extends State<MapScreen> {
 
       if (response.statusCode == 200) {
         final results = jsonDecode(response.body) as List;
-        if (results.isNotEmpty) {
-          final lat = double.parse(results[0]['lat']);
-          final lon = double.parse(results[0]['lon']);
-          final newLocation = LatLng(lat, lon);
-
-          setState(() => currentLocation = newLocation);
-          mapController.move(newLocation, 14);
-
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Found: ${results[0]['display_name']}'),
-              duration: const Duration(seconds: 2),
-            ),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Location not found')),
-          );
-        }
+        setState(() {
+          suggestions = results
+              .map((r) => {
+                    'display_name': r['display_name'] as String,
+                    'lat': double.parse(r['lat']),
+                    'lon': double.parse(r['lon']),
+                  })
+              .toList();
+          showSuggestions = suggestions.isNotEmpty;
+        });
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e')),
-      );
-    } finally {
-      setState(() => isSearching = false);
+      debugPrint('Search error: $e');
     }
+  }
+
+  Future<void> selectLocation(Map<String, dynamic> location) async {
+    final lat = location['lat'] as double;
+    final lon = location['lon'] as double;
+    final newLocation = LatLng(lat, lon);
+
+    setState(() {
+      currentLocation = newLocation;
+      searchController.text = location['display_name'];
+      suggestions = [];
+      showSuggestions = false;
+    });
+
+    mapController.move(newLocation, 14);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Found: ${location['display_name']}'),
+        duration: const Duration(seconds: 2),
+      ),
+    );
   }
 
   @override
@@ -138,67 +160,88 @@ class _MapScreenState extends State<MapScreen> {
             ],
           ),
 
-          // Search bar
+          // Search bar with suggestions
           Positioned(
             top: 16,
             left: 16,
             right: 16,
-            child: Container(
-              decoration: BoxDecoration(
-                color: const Color(0xFF1A2634),
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.3),
-                    blurRadius: 8,
-                  ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: searchController,
-                      decoration: InputDecoration(
-                        hintText: 'Search location...',
-                        hintStyle: TextStyle(color: Colors.grey.withOpacity(0.5)),
-                        border: InputBorder.none,
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 12,
-                        ),
+            child: Column(
+              children: [
+                Container(
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1A2634),
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.3),
+                        blurRadius: 8,
                       ),
-                      onSubmitted: searchLocation,
-                    ),
+                    ],
                   ),
-                  Padding(
-                    padding: const EdgeInsets.all(8.0),
-                    child: ElevatedButton(
-                      onPressed: isSearching
-                          ? null
-                          : () => searchLocation(searchController.text),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue,
-                        disabledBackgroundColor: Colors.grey,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
+                  child: TextField(
+                    controller: searchController,
+                    decoration: InputDecoration(
+                      hintText: 'Search location...',
+                      hintStyle: TextStyle(color: Colors.grey.withOpacity(0.5)),
+                      border: InputBorder.none,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
                       ),
-                      child: isSearching
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                valueColor:
-                                    AlwaysStoppedAnimation(Colors.white),
-                              ),
+                      suffixIcon: searchController.text.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear),
+                              onPressed: () {
+                                searchController.clear();
+                                setState(() {
+                                  suggestions = [];
+                                  showSuggestions = false;
+                                });
+                              },
                             )
-                          : const Icon(Icons.search),
+                          : null,
                     ),
                   ),
-                ],
-              ),
+                ),
+                // Suggestions dropdown
+                if (showSuggestions && suggestions.isNotEmpty)
+                  Container(
+                    margin: const EdgeInsets.only(top: 8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1A2634),
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.3),
+                          blurRadius: 8,
+                        ),
+                      ],
+                    ),
+                    child: ListView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: suggestions.length,
+                      itemBuilder: (context, index) {
+                        final suggestion = suggestions[index];
+                        return ListTile(
+                          leading: const Icon(
+                            Icons.location_on,
+                            color: Colors.blue,
+                            size: 20,
+                          ),
+                          title: Text(
+                            suggestion['display_name'],
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 14),
+                          ),
+                          onTap: () => selectLocation(suggestion),
+                          hoverColor: Colors.blue.withOpacity(0.1),
+                        );
+                      },
+                    ),
+                  ),
+              ],
             ),
           ),
         ],
