@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base href="$FLUTTER_BASE_HREF">
+  <meta charset="UTF-8">
+  <!-- Replace YOUR_GOOGLE_MAPS_API_KEY with your actual key from https://console.cloud.google.com -->
+  <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_MAPS_API_KEY"></script>
+  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <meta name="description" content="Terrain-aware navigation app.">
+
+  <!-- iOS meta tags & icons -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="terrainiq">
+  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="favicon.png"/>
+
+  <title>terrainiq</title>
+  <link rel="manifest" href="manifest.json">
+
+  <script>
+    // The value of window.FLUTTER_ENV is injected by the Flutter CLI.
+    window.FLUTTER_ENV ??= {};
+  </script>
+
+  <style>
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      padding: 0;
+    }
+  </style>
+
+  <script src="flutter.js" defer></script>
+</head>
+<body>
+  <script>
+    window.addEventListener('flutter-initialized', function() {
+      console.log('Flutter initialized');
+    });
+    _flutter.loader.load();
+  </script>
+</body>
+</html>

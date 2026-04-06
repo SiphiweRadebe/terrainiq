@@ -183,10 +183,16 @@ class _MapScreenState extends State<MapScreen> {
             options: MapOptions(
               initialCenter: _currentLocation,
               initialZoom: 12,
+              minZoom: 3,
+              maxZoom: 19,
+              interactionOptions: const InteractionOptions(
+                flags: InteractiveFlag.all,
+                enableMultiFingerGestureRace: true,
+              ),
             ),
             children: [
               TileLayer(
-                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                urlTemplate: 'https://mts1.googleapis.com/vt?lyrs=m&x={x}&y={y}&z={z}&key=AIzaSyAa9gNYf3a_uCJCiiiU5zu4OiasuMbgIFk',
                 userAgentPackageName: 'com/terrainiq',
               ),
              
@@ -362,6 +368,37 @@ PolylineLayer(polylines: [
                 ),
               ),
             ),
+
+          // Zoom buttons
+          Positioned(
+            top: 16,
+            right: 16,
+            child: Column(
+              children: [
+                FloatingActionButton(
+                  mini: true,
+                  onPressed: () => _mapController.move(
+                    _mapController.camera.center,
+                    _mapController.camera.zoom + 1,
+                  ),
+                  backgroundColor: const Color(0xFF1A2332),
+                  foregroundColor: Colors.blue[300],
+                  child: const Icon(Icons.add),
+                ),
+                const SizedBox(height: 8),
+                FloatingActionButton(
+                  mini: true,
+                  onPressed: () => _mapController.move(
+                    _mapController.camera.center,
+                    (_mapController.camera.zoom - 1).clamp(3.0, 19.0),
+                  ),
+                  backgroundColor: const Color(0xFF1A2332),
+                  foregroundColor: Colors.blue[300],
+                  child: const Icon(Icons.remove),
+                ),
+              ],
+            ),
+          ),
 
           // Legend
           Positioned(

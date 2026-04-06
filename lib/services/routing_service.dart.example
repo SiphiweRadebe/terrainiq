@@ -1,0 +1,14 @@
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import '../models/route.dart';
+import 'package:latlong2/latlong.dart';
+
+enum RoutingMode { driving, walking, cycling }
+
+class RoutingService {
+  // Replace with your Google Maps API key from https://console.cloud.google.com
+  static const String _apiKey = 'YOUR_GOOGLE_MAPS_API_KEY';
+  static const String _baseUrl = 'https://maps.googleapis.com/maps/api/directions/json';
+
+  // ... rest of the file
+}
