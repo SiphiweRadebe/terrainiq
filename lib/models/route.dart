@@ -2,16 +2,35 @@ class RouteInfo {
   final List<Map<String, double>> coordinates;
   final double distanceMeters;
   final double durationSeconds;
+  final List<double> elevations;
+  final List<double> gradients;
+  final double maxElevation;
+  final double minElevation;
+  final double maxGradient;
 
   RouteInfo({
     required this.coordinates,
     required this.distanceMeters,
     required this.durationSeconds,
+    this.elevations = const [],
+    this.gradients = const [],
+    this.maxElevation = 0,
+    this.minElevation = 0,
+    this.maxGradient = 0,
   });
 
   String get distanceKm => (distanceMeters / 1000).toStringAsFixed(1);
   String get durationMinutes => (durationSeconds / 60).toStringAsFixed(0);
   String get displayInfo => '$distanceKm km • $durationMinutes min';
+  String get elevationGain {
+    if (elevations.isEmpty) return 'N/A';
+    double gain = 0;
+    for (int i = 1; i < elevations.length; i++) {
+      final diff = elevations[i] - elevations[i - 1];
+      if (diff > 0) gain += diff;
+    }
+    return '${gain.toStringAsFixed(0)}m';
+  }
 
   factory RouteInfo.fromJson(Map<String, dynamic> json) {
     final geometry = json['geometry']?['coordinates'] as List? ?? [];

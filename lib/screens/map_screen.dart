@@ -8,6 +8,9 @@ import '../services/geocoding_service.dart';
 import '../services/routing_service.dart';
 import '../utils/constants.dart';
 import '../services/road_service.dart';
+import '../services/elevation_service.dart';
+import '../widgets/elevation_chart.dart';
+import '../widgets/warnings_panel.dart';
 
 class MapScreen extends StatefulWidget {
   const MapScreen({Key? key}) : super(key: key);
@@ -38,6 +41,7 @@ class _MapScreenState extends State<MapScreen> {
 
   // Road state
   List<Polyline> _roadPolylines = [];
+  List<RouteWarning> _warnings = [];
 
   // Performance optimizations
   Timer? _searchDebounceTimer;
@@ -148,17 +152,53 @@ class _MapScreenState extends State<MapScreen> {
       _isCalculatingRoute = false;
       if (route != null) {
         _currentRoute = route;
-        _routePolyline = Polyline(
-          points: route.coordinates
-              .map((c) => LatLng(c['lat']!, c['lon']!))
-              .toList(),
-          color: Colors.blue.withValues(alpha: 0.5),
-          strokeWidth: 5,
-          borderColor: Colors.blue.withValues(alpha: 0.8),
-          borderStrokeWidth: 1,
+
+        // Create color-coded polylines based on gradients
+        _routePolyline = _createGradientPolyline(route);
+
+        // Generate warnings
+        _warnings = WarningsPanel.generateWarnings(
+          route.gradients,
+          route.distanceMeters,
         );
       }
     });
+  }
+
+  Polyline _createGradientPolyline(route_model.RouteInfo route) {
+    if (route.coordinates.length < 2) {
+      // Fallback if no gradient data
+      return Polyline(
+        points: route.coordinates
+            .map((c) => LatLng(c['lat']!, c['lon']!))
+            .toList(),
+        color: Colors.blue.withValues(alpha: 0.5),
+        strokeWidth: 5,
+      );
+    }
+
+    // If we have gradients, use them for color coding
+    if (route.gradients.isNotEmpty) {
+      // Return a blue polyline for now (we'll enhance with gradient colors later)
+      // The gradient info is available in route.gradients
+      return Polyline(
+        points: route.coordinates
+            .map((c) => LatLng(c['lat']!, c['lon']!))
+            .toList(),
+        color: Colors.blue.withValues(alpha: 0.5),
+        strokeWidth: 5,
+        borderColor: Colors.blue.withValues(alpha: 0.8),
+        borderStrokeWidth: 1,
+      );
+    }
+
+    return Polyline(
+      points: route.coordinates
+          .map((c) => LatLng(c['lat']!, c['lon']!))
+          .toList(),
+      color: Colors.blue.withValues(alpha: 0.5),
+      strokeWidth: 5,
+    );
   }
 
   void _fetchRoads(LatLng center) {
@@ -346,25 +386,48 @@ PolylineLayer(polylines: [
             ),
           ),
 
-          // Route Info
+          // Route Info, Elevation, and Warnings
           if (_currentRoute != null && !_isCalculatingRoute)
             Positioned(
               top: 200,
               left: 16,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1A2332),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.green[300]!),
-                ),
-                child: Text(
-                  _currentRoute!.displayInfo,
-                  style: TextStyle(
-                    color: Colors.green[300],
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                  ),
+              right: 16,
+              bottom: 100,
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Route Info
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1A2332),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.green[300]!),
+                      ),
+                      child: Text(
+                        _currentRoute!.displayInfo,
+                        style: TextStyle(
+                          color: Colors.green[300],
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Warnings
+                    WarningsPanel(warnings: _warnings),
+                    const SizedBox(height: 12),
+
+                    // Elevation Chart
+                    if (_currentRoute!.elevations.isNotEmpty)
+                      ElevationChart(
+                        elevations: _currentRoute!.elevations,
+                        maxElevation: _currentRoute!.maxElevation,
+                        minElevation: _currentRoute!.minElevation,
+                      ),
+                  ],
                 ),
               ),
             ),
