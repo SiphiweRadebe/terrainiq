@@ -232,7 +232,7 @@ class _MapScreenState extends State<MapScreen> {
             ),
             children: [
               TileLayer(
-                urlTemplate: 'https://mts1.googleapis.com/vt?lyrs=m&x={x}&y={y}&z={z}&key=AIzaSyAa9gNYf3a_uCJCiiiU5zu4OiasuMbgIFk',
+                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                 userAgentPackageName: 'com/terrainiq',
               ),
              
