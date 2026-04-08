@@ -9,7 +9,7 @@ import '../services/routing_service.dart';
 import '../utils/constants.dart';
 import '../services/road_service.dart';
 import '../widgets/elevation_chart.dart';
-import '../widgets/warnings_panel.dart' show RouteWarning;
+import '../widgets/warnings_panel.dart';
 
 class MapScreen extends StatefulWidget {
   const MapScreen({Key? key}) : super(key: key);
