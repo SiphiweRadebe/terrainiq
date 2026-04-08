@@ -8,9 +8,8 @@ import '../services/geocoding_service.dart';
 import '../services/routing_service.dart';
 import '../utils/constants.dart';
 import '../services/road_service.dart';
-import '../services/elevation_service.dart';
 import '../widgets/elevation_chart.dart';
-import '../widgets/warnings_panel.dart';
+import '../widgets/warnings_panel.dart' show RouteWarning;
 
 class MapScreen extends StatefulWidget {
   const MapScreen({Key? key}) : super(key: key);
@@ -38,6 +37,7 @@ class _MapScreenState extends State<MapScreen> {
   route_model.RouteInfo? _currentRoute;
   bool _isCalculatingRoute = false;
   RoutingMode _routingMode = RoutingMode.driving;
+  bool _showElevationChart = false; // Toggle for chart
 
   // Road state
   List<Polyline> _roadPolylines = [];
@@ -386,47 +386,137 @@ PolylineLayer(polylines: [
             ),
           ),
 
-          // Route Info, Elevation, and Warnings
+          // Route Info (top left)
           if (_currentRoute != null && !_isCalculatingRoute)
             Positioned(
-              top: 200,
+              top: 120,
+              left: 16,
+              right: 80,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1A2332),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.green[300]!),
+                ),
+                child: Text(
+                  _currentRoute!.displayInfo,
+                  style: TextStyle(
+                    color: Colors.green[300],
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+
+          // Warnings Badge (bottom left)
+          if (_warnings.isNotEmpty && _currentRoute != null)
+            Positioned(
+              bottom: 24,
+              left: 16,
+              width: 200,
+              child: GestureDetector(
+                onTap: () => setState(() => _showElevationChart = !_showElevationChart),
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1A2332),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.orange[300]!),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Text(
+                            '⚠️ ',
+                            style: TextStyle(fontSize: 16),
+                          ),
+                          Expanded(
+                            child: Text(
+                              '${_warnings.length} steep section${_warnings.length > 1 ? 's' : ''}',
+                              style: TextStyle(
+                                color: Colors.orange[300],
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (_warnings.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Text(
+                            _warnings.first.message,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 11,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
+          // Elevation Chart (bottom sheet)
+          if (_showElevationChart && _currentRoute != null && _currentRoute!.elevations.isNotEmpty)
+            Positioned(
+              bottom: 24,
               left: 16,
               right: 16,
-              bottom: 100,
-              child: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+              child: Container(
+                constraints: const BoxConstraints(maxHeight: 300),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1A2332),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.blue[300]!),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.5),
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Stack(
                   children: [
-                    // Route Info
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF1A2332),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.green[300]!),
-                      ),
-                      child: Text(
-                        _currentRoute!.displayInfo,
-                        style: TextStyle(
-                          color: Colors.green[300],
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
+                    SingleChildScrollView(
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: ElevationChart(
+                          elevations: _currentRoute!.elevations,
+                          maxElevation: _currentRoute!.maxElevation,
+                          minElevation: _currentRoute!.minElevation,
                         ),
                       ),
                     ),
-                    const SizedBox(height: 12),
-
-                    // Warnings
-                    WarningsPanel(warnings: _warnings),
-                    const SizedBox(height: 12),
-
-                    // Elevation Chart
-                    if (_currentRoute!.elevations.isNotEmpty)
-                      ElevationChart(
-                        elevations: _currentRoute!.elevations,
-                        maxElevation: _currentRoute!.maxElevation,
-                        minElevation: _currentRoute!.minElevation,
+                    // Close button
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: GestureDetector(
+                        onTap: () => setState(() => _showElevationChart = false),
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: Colors.red[700],
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: const Icon(
+                            Icons.close,
+                            color: Colors.white,
+                            size: 16,
+                          ),
+                        ),
                       ),
+                    ),
                   ],
                 ),
               ),
